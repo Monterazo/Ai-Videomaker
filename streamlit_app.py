@@ -31,7 +31,7 @@ def text_page():
   ELEVEN_LABS_API_KEY = st.session_state.setdefault('ELEVEN_LABS_API_KEY', None)
 
   # Configure API keys
-  gemini_key = st.sidebar.text_input("Enter your Gemini key:", value=st.session_state.gemini_api_key)
+  gemini_key = st.sidebar.text_input("Enter your Gemini key:", value=st.session_state.gemini_api_key, type='password')
 
     # Check if the API key is provided
   if not gemini_key:
@@ -43,7 +43,7 @@ def text_page():
   genai.configure(api_key=gemini_key)
 
   # Configure elevenlabs keys
-  elevenlabs_key = st.sidebar.text_input("Enter your Eleven Labs key:", value=st.session_state.ELEVEN_LABS_API_KEY)
+  elevenlabs_key = st.sidebar.text_input("Enter your Eleven Labs key:", value=st.session_state.ELEVEN_LABS_API_KEY, type='password')
 
     # Check if the API key is provided
   if not elevenlabs_key:
