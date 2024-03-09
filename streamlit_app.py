@@ -4,9 +4,10 @@ import pathlib
 import textwrap
 import streamlit as st
 import json
-import replicate
+import elevenlabs
 import os
 
+from elevenlabs import generate, play, save
 from IPython.display import display
 from IPython.display import Markdown
 
@@ -21,16 +22,13 @@ def to_markdown(text):
 def initialize_session_state_gemini():
     return st.session_state.setdefault('gemini_api_key', None)
 
-def initialize_session_state_replicate():
-    return st.session_state.setdefault('replicate_api_key', None)
-
 # Main Streamlit app
 def text_page():
-  st.title("Tale Genius")
+  st.title("DigA.I.")
 
     # Initialize session state
   initialize_session_state_gemini()  
-  initialize_session_state_replicate()  
+  ELEVEN_LABS_API_KEY = st.session_state.setdefault('ELEVEN_LABS_API_KEY', None)
 
   # Configure API keys
   gemini_key = st.sidebar.text_input("Enter your Gemini key:", value=st.session_state.gemini_api_key)
@@ -44,17 +42,17 @@ def text_page():
 
   genai.configure(api_key=gemini_key)
 
-  # Configure Replicate keys
-  replicate_key = st.sidebar.text_input("Enter your Replicate key:", value=st.session_state.replicate_api_key)
+  # Configure elevenlabs keys
+  elevenlabs_key = st.sidebar.text_input("Enter your Eleven Labs key:", value=st.session_state.ELEVEN_LABS_API_KEY)
 
     # Check if the API key is provided
-  if not replicate_key:
+  if not elevenlabs_key:
     st.sidebar.error("Please enter your API key.")
   else:
     # Store the API key in session state
-    st.session_state.replicate_api_key = replicate_key
+    st.session_state.ELEVEN_LABS_API_KEY = elevenlabs_key
 
-    os.environ["REPLICATE_API_TOKEN"] = replicate_key
+    os.environ["elevenlabs_API_TOKEN"] = elevenlabs_key
   
 
     
@@ -75,7 +73,7 @@ def text_page():
   safety_settings = "{}"
   safety_settings = json.loads(safety_settings)
         
-  prompt = st.text_input("Enter the Theme:")
+  prompt = st.text_input("Enter the question:")
   # Check if the query is provided
   if not prompt:
     st.stop()
@@ -90,7 +88,7 @@ def text_page():
                 
 
     
-  theme_prompt= "is the theme of my three part . Each part must have a short Narration and a Prompt to generate an image about the event narrated"
+  theme_prompt= "is the question of my educational script of up to 5 parts. Each part must have a short Narration and a Prompt to generate an image about the event narrated. If you don't know about the subject, simply return 'i dont know'"
   prompt_parts = [theme_prompt] + [prompt] 
   
   response= ''
@@ -104,13 +102,15 @@ def text_page():
   try:
     response = gemini.generate_content(prompt_parts)
     st.subheader("Gemini:")
-    if response.text:   
+    if response.text: 
         st.write(response.text)
     else:
       st.write("No output from Gemini.")
   except Exception as e:
     st.write(f"An error occurred: {str(e)}")
         
+        
+#Prompt spliting
   def split_prompts(text: str, part: str):
       narration = model.generate_content(f"Return only The Part {part} Narration (except for the word narration) with no modification, from the script:" + text)
       image = model.generate_content(f"I have an story and I want only the Image Prompt for the part {part} with, the story is:" + text)
@@ -120,23 +120,20 @@ def text_page():
           "image": image.text
       }
 
-  prompt = split_prompts(response.text, 1)
-  st.write(response.text)
+  splited = split_prompts(response.text, 1)
+  st.write(splited['narration'])
 
-#Replicate  
 
-  output = replicate.run(
-    "stability-ai/sdxl:39ed52f2a78e934b3ba6e2a89f5b1c712de7dfea535525255b1aa35c5565e08b",
-    input={"prompt": prompt['image']}
+  audio = generate(
+    api_key=ELEVEN_LABS_API_KEY,
+    text=splited['narration'],
+    voice="Rachel",
+    model="eleven_multilingual_v2"
   )
 
-  output
-
-  from IPython.display import Image
-  Image(url=output[0])
-
-
-
+  save(audio,'test.wav')
+  
+  st.audio(audio)
 
 # Run the Streamlit app
 if __name__ == "__main__":
