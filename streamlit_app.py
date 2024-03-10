@@ -78,6 +78,45 @@ def split_prompts(text: str, part: str):
     "image": image.text
     }
       
+def split_script(scenesAmount, response, split_prompts):
+    splited_list = []
+    with st.spinner('Spliting script...'):
+        for i in range(scenesAmount):
+            splited = split_prompts(response, i+1)
+            splited_list.append(splited)
+            st.write('iteration' + str(i+1))
+            st.write(splited_list[i]['narration'])
+    return splited_list
+
+def generate_audio(scenesAmount, splited_list, generate, ELEVEN_LABS_API_KEY):
+    audio_list = []
+    with st.spinner('Generating audio files...'):
+        for i in range(scenesAmount):
+            audio = generate(
+                api_key=ELEVEN_LABS_API_KEY,
+                text=splited_list[i]['narration'],
+                voice="Rachel",
+                model="eleven_multilingual_v2"
+            )
+            audio_list.append(audio)
+    return audio_list
+
+def generate_images(scenesAmount, splited_list):
+    image_response_list = []
+    client = OpenAI()
+    with st.spinner('Generating image files...'):
+        for i in range(scenesAmount):
+            imageresponse = client.images.generate(
+                model="dall-e-3",
+                prompt=splited_list[i]['image'],
+                size="1024x1024",
+                quality="standard",
+                n=1,
+            )  
+            image_data = requests.get(imageresponse.data[0].url).content
+            image_response_list.append(image_data)
+    return image_response_list
+
 # Function to initialize session state
 def initialize_session_state_gemini():
     return st.session_state.setdefault('gemini_api_key', None)
@@ -138,60 +177,26 @@ def text_page():
     st.session_state.OPENAI_API_KEY = openai_key
 
     os.environ["OPENAI_API_KEY"] = openai_key
+
   
-
-
+  #Main code
+  
   prompt = get_prompt(inputChoice, process_image)
   
-  # Script generation
   response = generate_script(prompt, gemini_key, scenesAmount, imageStyle)
   st.write(response)
   
-  #Prompt spliting
-  splited_list = []
-  with st.spinner('Spliting script...'):
-    for i in range(scenesAmount):
-      splited = split_prompts(response, i+1)
-      splited_list.append(splited)
-      st.write('iteration' + str(i+1))
-      st.write(splited_list[i]['narration'])
-
-  #Audio generation
-  audio_list = []
-
-  with st.spinner('Generating audio files...'):
-    for i in range(scenesAmount):
-      audio = generate(
-          api_key=ELEVEN_LABS_API_KEY,
-          text=splited_list[i]['narration'],
-          voice="Rachel",
-          model="eleven_multilingual_v2"
-      )
-      audio_list.append(audio)
-
+  splited_list = split_script(scenesAmount, response, split_prompts)
   
-  #Image generation
-  image_response_list = []
+  #audio_list = generate_audio(scenesAmount, splited_list, generate, ELEVEN_LABS_API_KEY)
 
-  client = OpenAI()
-  with st.spinner('Generating image files...'):
-    for i in range(scenesAmount):
-      imageresponse = client.images.generate(
-        model="dall-e-3",
-        prompt=splited_list[i]['image'],
-        size="1024x1024",
-        quality="standard",
-        n=1,
-      )  
-      image_data = requests.get(imageresponse.data[0].url).content
-      image_response_list.append(image_data)
-    
+  image_response_list = generate_images(scenesAmount, splited_list)
+
   
   for i in range(scenesAmount):
     st.image(image_response_list[i], caption='Image number'+str(i+1))
     
   st.subheader("Your video:")
-    
     
   st.balloons()
   st.toast('Your video is ready!', icon='🎈')
