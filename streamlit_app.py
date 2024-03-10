@@ -87,9 +87,6 @@ def text_page():
     st.session_state.OPENAI_API_KEY = openai_key
 
     os.environ["OPENAI_API_KEY"] = openai_key
-  
-
-  
 
   safety_settings = "{}"  
   safety_settings = json.loads(safety_settings)
@@ -117,7 +114,6 @@ def text_page():
     gemini = genai.GenerativeModel(model_name="gemini-pro",
                                   #generation_config=generation_config,
                                   safety_settings=safety_settings)
-                  
       
     theme_prompt= "is the question of my educational script of" +str(scenesAmount) + "parts. Each part must have a short Narration and a Prompt to generate an image in the style" + str(imageStyle) + "about the event narrated."
     prompt_parts = [theme_prompt] + [prompt] 
@@ -128,11 +124,8 @@ def text_page():
       parts = response.parts
     try:
       response = gemini.generate_content(prompt_parts)
-      st.write(response.text)
       if response.text: 
           st.toast('Script generated!', icon='🎈')  
-      else:
-        st.write("No output from Gemini.")
     except Exception as e:
       st.write(f"An error occurred: {str(e)}")
          
@@ -142,8 +135,8 @@ def text_page():
     for i in range(scenesAmount):
       splited = split_prompts(response.text, i+1)
       splited_list.append(splited)
-      #st.write('iteration' + str(i+1))
-      #st.write(splited_list[i]['narration'])
+      st.write('iteration' + str(i+1))
+      st.write(splited_list[i]['narration'])
 
   #Audio generation
   audio_list = []
@@ -171,17 +164,20 @@ def text_page():
         size="1024x1024",
         quality="standard",
         n=1,
-      )
+      )  
+      image_data = requests.get(imageresponse.data[0].url).content
+      image_response_list.append(image_data)
     
-    st.subheader("Your video:")
+  
+  for i in range(scenesAmount):
+    st.image(image_response_list[i], caption='Image number'+str(i+1))
     
-    image_data = requests.get(imageresponse.data[0].url).content
-    st.image(image_data)
-    st.balloons()
-    st.toast('Your video is ready!', icon='🎈')
+  st.subheader("Your video:")
     
-
-
+    
+  st.balloons()
+  st.toast('Your video is ready!', icon='🎈')
+    
 
 # Run the Streamlit app
 if __name__ == "__main__":
