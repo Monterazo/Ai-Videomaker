@@ -1,22 +1,57 @@
 #import necessary packages
 import google.generativeai as genai
-import textwrap
 import streamlit as st
 import json
 import os
 import requests
-import time
+import io
 
+from PIL import Image
 from openai import OpenAI 
 from elevenlabs import generate, play, save
 from IPython.display import display
 from IPython.display import Markdown
 
-
-def to_markdown(text):
-  text = text.replace('•', '  *')
-  return Markdown(textwrap.indent(text, '> ', predicate=lambda _: True))
-
+def process_image(imageInput):
+  with st.spinner('Analyzing image...'):
+    visionModel = genai.GenerativeModel('gemini-pro-vision')
+    if imageInput is not None:
+        imageInput = Image.open(imageInput)
+        imageResult = visionModel.generate_content(["What is the main subject in the image?", imageInput])
+        return imageResult.text
+    else:
+        st.stop()
+        
+def generate_script(prompt, gemini_key, scenesAmount, imageStyle):    
+    safety_settings = "{}"  
+    safety_settings = json.loads(safety_settings)
+    # Check if the query is provided
+    if not prompt:
+        st.stop()
+    if not gemini_key:
+        st.error("Please enter your API key.")
+        st.stop()
+    
+    #Script generation
+    with st.spinner('Generating script...'):
+        gemini = genai.GenerativeModel(model_name="gemini-pro",
+                                      #generation_config=generation_config,
+                                      safety_settings=safety_settings)
+        
+        theme_prompt= "is the question of my educational script of" +str(scenesAmount) + "parts. Each part must have a short Narration and a Prompt to generate an image in the style" + str(imageStyle) + "about the event narrated."
+        prompt_parts = [theme_prompt] + [prompt] 
+        
+        response= ''
+        
+        if response:
+            parts = response.parts
+        try:
+            response = gemini.generate_content(prompt_parts)
+            if response.text: 
+                st.toast('Script generated!', icon='🎈')  
+                return response.text
+        except Exception as e:
+            st.write(f"An error occurred: {str(e)}")
 
 def split_prompts(text: str, part: str):
   model = genai.GenerativeModel('gemini-pro')
@@ -87,53 +122,31 @@ def text_page():
     st.session_state.OPENAI_API_KEY = openai_key
 
     os.environ["OPENAI_API_KEY"] = openai_key
-
-  safety_settings = "{}"  
-  safety_settings = json.loads(safety_settings)
   
   if inputChoice == ":rainbow[Text]":
     prompt = st.text_input("Generate an educational video about:")
   elif inputChoice == "Camera":
-    prompt = st.camera_input("Take a picture")
+    imageInput = st.camera_input("Take a picture")
+    prompt = process_image(imageInput)
+    st.write(prompt)
   elif inputChoice == "Image File :floppy_disk:":
-    prompt = st.file_uploader("Upload a file", type=["jpg", "png", "jpeg"])
+    imageInput = st.file_uploader("Upload a file", type=["jpg", "png", "jpeg"],label_visibility='collapsed')
+    prompt = process_image(imageInput)
+    st.write(prompt)
+
   else:
     st.error("Please select an input option.")
     st.stop()
     
   
-  # Check if the query is provided
-  if not prompt:
-    st.stop()
-  if not gemini_key:
-    st.error("Please enter your API key.")
-    st.stop()
-    
-  #Script generation
-  with st.spinner('Generating script...'):
-    gemini = genai.GenerativeModel(model_name="gemini-pro",
-                                  #generation_config=generation_config,
-                                  safety_settings=safety_settings)
-      
-    theme_prompt= "is the question of my educational script of" +str(scenesAmount) + "parts. Each part must have a short Narration and a Prompt to generate an image in the style" + str(imageStyle) + "about the event narrated."
-    prompt_parts = [theme_prompt] + [prompt] 
-    
-    response= ''
-    
-    if response:
-      parts = response.parts
-    try:
-      response = gemini.generate_content(prompt_parts)
-      if response.text: 
-          st.toast('Script generated!', icon='🎈')  
-    except Exception as e:
-      st.write(f"An error occurred: {str(e)}")
-         
+  # Script generation
+  response = generate_script(prompt, gemini_key, scenesAmount, imageStyle)
+  st.write(response)
   #Prompt spliting
   splited_list = []
   with st.spinner('Spliting script...'):
     for i in range(scenesAmount):
-      splited = split_prompts(response.text, i+1)
+      splited = split_prompts(response, i+1)
       splited_list.append(splited)
       st.write('iteration' + str(i+1))
       st.write(splited_list[i]['narration'])
