@@ -33,7 +33,7 @@ def initialize_session_state_gemini():
 
 # Main Streamlit app
 def text_page():
-  st.title("DigA.I.")
+  st.title("Tale Genius")
   
   # Style Selector
   st.sidebar.subheader("Image Style")
@@ -52,9 +52,16 @@ def text_page():
   ELEVEN_LABS_API_KEY = st.session_state.setdefault('ELEVEN_LABS_API_KEY', None)
   OPENAI_API_KEY = st.session_state.setdefault('OPENAI_API_KEY', None)
 
+  # Input Choice
+  st.sidebar.subheader("Input Option")
+  inputChoice = st.sidebar.radio(
+     "What's your input option",
+     [":rainbow[Text]", "Camera", "Image File :floppy_disk:"],
+     label_visibility='collapsed')
+
   # Configure API keys
   st.sidebar.subheader("API Tokens")
-  gemini_key = st.sidebar.text_input("",value=st.session_state.gemini_api_key,label_visibility='collapsed', type='password', placeholder='Enter your Gemini Key')
+  gemini_key = st.sidebar.text_input("",value=st.session_state.gemini_api_key,label_visibility='collapsed', type='password', placeholder='Enter Gemini Key')
 
     # Check if the API key is provided
   if gemini_key:
@@ -63,7 +70,7 @@ def text_page():
   genai.configure(api_key=gemini_key)
 
   # Configure elevenlabs keys
-  elevenlabs_key = st.sidebar.text_input("", value=st.session_state.ELEVEN_LABS_API_KEY,label_visibility='collapsed', type='password', placeholder='Enter your Eleven Labs Key')
+  elevenlabs_key = st.sidebar.text_input("", value=st.session_state.ELEVEN_LABS_API_KEY,label_visibility='collapsed', type='password', placeholder='Enter Eleven Labs Key')
 
     # Check if the API key is provided
   if elevenlabs_key:
@@ -72,7 +79,7 @@ def text_page():
     os.environ["elevenlabs_API_TOKEN"] = elevenlabs_key
 
   # Configure Openai keys
-  openai_key = st.sidebar.text_input("", value=st.session_state.OPENAI_API_KEY,label_visibility='collapsed', type='password', placeholder='Enter your Openai Key')
+  openai_key = st.sidebar.text_input("", value=st.session_state.OPENAI_API_KEY,label_visibility='collapsed', type='password', placeholder='Enter Openai Key')
 
   # Check if the API key is provided
   if openai_key:
@@ -81,17 +88,23 @@ def text_page():
 
     os.environ["OPENAI_API_KEY"] = openai_key
   
-  # Input Choice
-  # inputChoice = st.radio(
-  #   "What's your input option",
-  #   [":rainbow[Text]", "***Camera***", "Image File :movie_camera:"],
-  #   captions = ["Laugh out loud.", "Get the popcorn.", "Never stop learning."])
+
   
 
   safety_settings = "{}"  
   safety_settings = json.loads(safety_settings)
-        
-  prompt = st.text_input("Enter the question:")
+  
+  if inputChoice == ":rainbow[Text]":
+    prompt = st.text_input("Generate an educational video about:")
+  elif inputChoice == "Camera":
+    prompt = st.camera_input("Take a picture")
+  elif inputChoice == "Image File :floppy_disk:":
+    prompt = st.file_uploader("Upload a file", type=["jpg", "png", "jpeg"])
+  else:
+    st.error("Please select an input option.")
+    st.stop()
+    
+  
   # Check if the query is provided
   if not prompt:
     st.stop()
