@@ -106,7 +106,7 @@ def text_page():
                                   safety_settings=safety_settings)
                   
       
-    theme_prompt= "is the question of my educational script of 5 parts. Each part must have a short Narration and a Prompt to generate an image about the event narrated. If you don't know about the subject, simply return 'i dont know'"
+    theme_prompt= "is the question of my educational script of" +str(scenesAmount) + "parts. Each part must have a short Narration and a Prompt to generate an image in the style" + str(imageStyle) + "about the event narrated."
     prompt_parts = [theme_prompt] + [prompt] 
     
     response= ''
@@ -115,6 +115,7 @@ def text_page():
       parts = response.parts
     try:
       response = gemini.generate_content(prompt_parts)
+      st.write(response.text)
       if response.text: 
           st.toast('Script generated!', icon='🎈')  
       else:
@@ -125,7 +126,7 @@ def text_page():
   #Prompt spliting
   splited_list = []
   with st.spinner('Spliting script...'):
-    for i in range(5):
+    for i in range(scenesAmount):
       splited = split_prompts(response.text, i+1)
       splited_list.append(splited)
       #st.write('iteration' + str(i+1))
@@ -135,7 +136,7 @@ def text_page():
   audio_list = []
 
   with st.spinner('Generating audio files...'):
-    for i in range(2):
+    for i in range(scenesAmount):
       audio = generate(
           api_key=ELEVEN_LABS_API_KEY,
           text=splited_list[i]['narration'],
@@ -148,9 +149,9 @@ def text_page():
   #Image generation
   image_response_list = []
 
-  #client = OpenAI()
+  client = OpenAI()
   with st.spinner('Generating image files...'):
-    for i in range(2):
+    for i in range(scenesAmount):
       imageresponse = client.images.generate(
         model="dall-e-3",
         prompt=splited_list[i]['image'],
