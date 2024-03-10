@@ -12,12 +12,28 @@ from elevenlabs import generate, play, save
 from IPython.display import display
 from IPython.display import Markdown
 
+def get_prompt(inputChoice, process_image):
+    if inputChoice == ":rainbow[Text]":
+        prompt = st.text_input("Generate an educational video about:")
+    elif inputChoice == "Camera":
+        imageInput = st.camera_input("Take a picture")
+        prompt = process_image(imageInput)
+    elif inputChoice == "Image File :floppy_disk:":
+        imageInput = st.file_uploader("Upload a file", type=["jpg", "png", "jpeg"],label_visibility='collapsed')
+        prompt = process_image(imageInput)
+    else:
+      st.error("Please select an input option.")
+      st.stop()
+    
+    return prompt
+
 def process_image(imageInput):
   with st.spinner('Analyzing image...'):
     visionModel = genai.GenerativeModel('gemini-pro-vision')
     if imageInput is not None:
         imageInput = Image.open(imageInput)
         imageResult = visionModel.generate_content(["What is the main subject in the image?", imageInput])
+        st.write("Prompt:" +str(imageResult.text))
         return imageResult.text
     else:
         st.stop()
@@ -123,25 +139,14 @@ def text_page():
 
     os.environ["OPENAI_API_KEY"] = openai_key
   
-  if inputChoice == ":rainbow[Text]":
-    prompt = st.text_input("Generate an educational video about:")
-  elif inputChoice == "Camera":
-    imageInput = st.camera_input("Take a picture")
-    prompt = process_image(imageInput)
-    st.write(prompt)
-  elif inputChoice == "Image File :floppy_disk:":
-    imageInput = st.file_uploader("Upload a file", type=["jpg", "png", "jpeg"],label_visibility='collapsed')
-    prompt = process_image(imageInput)
-    st.write(prompt)
 
-  else:
-    st.error("Please select an input option.")
-    st.stop()
-    
+
+  prompt = get_prompt(inputChoice, process_image)
   
   # Script generation
   response = generate_script(prompt, gemini_key, scenesAmount, imageStyle)
   st.write(response)
+  
   #Prompt spliting
   splited_list = []
   with st.spinner('Spliting script...'):
