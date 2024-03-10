@@ -16,19 +16,6 @@ Tale Genius é um aplicativo Streamlit que gera um vídeo educacional baseado em
 - Câmera: Você pode tirar uma foto para gerar um vídeo educacional.
 - Arquivo de imagem: Você pode fazer upload de um arquivo de imagem para gerar um vídeo educacional.
 
-## Dependências
-
-- google.generativeai
-- streamlit
-- json
-- os
-- requests
-- io
-- PIL
-- openai
-- elevenlabs
-- IPython
-
 ## Chaves da API
 
 Você precisará fornecer suas próprias chaves da API para as seguintes APIs:
