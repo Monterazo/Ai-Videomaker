@@ -34,6 +34,18 @@ def initialize_session_state_gemini():
 # Main Streamlit app
 def text_page():
   st.title("DigA.I.")
+  
+  # Style Selector
+  st.sidebar.subheader("Image Style")
+  imageStyle = st.sidebar.selectbox(
+    'What image style is your favourite?',
+    ('Pixar', 'Realistic', 'Watercolor','Pointillism', 'Cartoon'), label_visibility='collapsed')
+    
+  # Scenes amount selector
+  st.sidebar.subheader("Amount of Scenes")
+  scenesAmount = st.sidebar.slider('How many scenes do you want?', 0, 8, 3, label_visibility='collapsed')
+  
+
 
   # Initialize session state
   initialize_session_state_gemini()  
@@ -41,13 +53,11 @@ def text_page():
   OPENAI_API_KEY = st.session_state.setdefault('OPENAI_API_KEY', None)
 
   # Configure API keys
+  st.sidebar.subheader("API Tokens")
   gemini_key = st.sidebar.text_input("",value=st.session_state.gemini_api_key,label_visibility='collapsed', type='password', placeholder='Enter your Gemini Key')
 
     # Check if the API key is provided
-  if not gemini_key:
-    st.sidebar.error("Please enter your Gemini key.")
-  else:
-    # Store the API key in session state
+  if gemini_key:
     st.session_state.gemini_api_key = gemini_key
 
   genai.configure(api_key=gemini_key)
@@ -56,25 +66,27 @@ def text_page():
   elevenlabs_key = st.sidebar.text_input("", value=st.session_state.ELEVEN_LABS_API_KEY,label_visibility='collapsed', type='password', placeholder='Enter your Eleven Labs Key')
 
     # Check if the API key is provided
-  if not elevenlabs_key:
-    st.sidebar.error("Please enter your API key.")
-  else:
+  if elevenlabs_key:
     # Store the API key in session state
     st.session_state.ELEVEN_LABS_API_KEY = elevenlabs_key
-
     os.environ["elevenlabs_API_TOKEN"] = elevenlabs_key
 
   # Configure Openai keys
   openai_key = st.sidebar.text_input("", value=st.session_state.OPENAI_API_KEY,label_visibility='collapsed', type='password', placeholder='Enter your Openai Key')
 
   # Check if the API key is provided
-  if not openai_key:
-    st.sidebar.error("Please enter your API key.")
-  else:
+  if openai_key:
     # Store the API key in session state
     st.session_state.OPENAI_API_KEY = openai_key
 
     os.environ["OPENAI_API_KEY"] = openai_key
+  
+  # Input Choice
+  # inputChoice = st.radio(
+  #   "What's your input option",
+  #   [":rainbow[Text]", "***Camera***", "Image File :movie_camera:"],
+  #   captions = ["Laugh out loud.", "Get the popcorn.", "Never stop learning."])
+  
 
   safety_settings = "{}"  
   safety_settings = json.loads(safety_settings)
@@ -151,6 +163,7 @@ def text_page():
     
     image_data = requests.get(imageresponse.data[0].url).content
     st.image(image_data)
+    st.balloons()
     st.toast('Your video is ready!', icon='🎈')
     
 
