@@ -1,22 +1,73 @@
 #import necessary packages
 import google.generativeai as genai
-import textwrap
 import streamlit as st
 import json
 import os
 import requests
-import time
+import io
 
+from PIL import Image
 from openai import OpenAI 
 from elevenlabs import generate, play, save
 from IPython.display import display
 from IPython.display import Markdown
 
+def get_prompt(inputChoice, process_image):
+    if inputChoice == ":rainbow[Text]":
+        prompt = st.text_input("Generate an educational video about:")
+    elif inputChoice == "Camera":
+        imageInput = st.camera_input("Take a picture")
+        prompt = process_image(imageInput)
+    elif inputChoice == "Image File :floppy_disk:":
+        imageInput = st.file_uploader("Upload a file", type=["jpg", "png", "jpeg"],label_visibility='collapsed')
+        prompt = process_image(imageInput)
+    else:
+      st.error("Please select an input option.")
+      st.stop()
+    
+    return prompt
 
-def to_markdown(text):
-  text = text.replace('•', '  *')
-  return Markdown(textwrap.indent(text, '> ', predicate=lambda _: True))
-
+def process_image(imageInput):
+  with st.spinner('Analyzing image...'):
+    visionModel = genai.GenerativeModel('gemini-pro-vision')
+    if imageInput is not None:
+        imageInput = Image.open(imageInput)
+        imageResult = visionModel.generate_content(["What is the main subject in the image?", imageInput])
+        st.write("Prompt:" +str(imageResult.text))
+        return imageResult.text
+    else:
+        st.stop()
+        
+def generate_script(prompt, gemini_key, scenesAmount, imageStyle):    
+    safety_settings = "{}"  
+    safety_settings = json.loads(safety_settings)
+    # Check if the query is provided
+    if not prompt:
+        st.stop()
+    if not gemini_key:
+        st.error("Please enter your API key.")
+        st.stop()
+    
+    #Script generation
+    with st.spinner('Generating script...'):
+        gemini = genai.GenerativeModel(model_name="gemini-pro",
+                                      #generation_config=generation_config,
+                                      safety_settings=safety_settings)
+        
+        theme_prompt= "is the question of my educational script of" +str(scenesAmount) + "parts. Each part must have a short Narration and a Prompt to generate an image in the style" + str(imageStyle) + "about the event narrated."
+        prompt_parts = [theme_prompt] + [prompt] 
+        
+        response= ''
+        
+        if response:
+            parts = response.parts
+        try:
+            response = gemini.generate_content(prompt_parts)
+            if response.text: 
+                st.toast('Script generated!', icon='🎈')  
+                return response.text
+        except Exception as e:
+            st.write(f"An error occurred: {str(e)}")
 
 def split_prompts(text: str, part: str):
   model = genai.GenerativeModel('gemini-pro')
@@ -27,6 +78,45 @@ def split_prompts(text: str, part: str):
     "image": image.text
     }
       
+def split_script(scenesAmount, response, split_prompts):
+    splited_list = []
+    with st.spinner('Spliting script...'):
+        for i in range(scenesAmount):
+            splited = split_prompts(response, i+1)
+            splited_list.append(splited)
+            st.write('iteration' + str(i+1))
+            st.write(splited_list[i]['narration'])
+    return splited_list
+
+def generate_audio(scenesAmount, splited_list, generate, ELEVEN_LABS_API_KEY):
+    audio_list = []
+    with st.spinner('Generating audio files...'):
+        for i in range(scenesAmount):
+            audio = generate(
+                api_key=ELEVEN_LABS_API_KEY,
+                text=splited_list[i]['narration'],
+                voice="Rachel",
+                model="eleven_multilingual_v2"
+            )
+            audio_list.append(audio)
+    return audio_list
+
+def generate_images(scenesAmount, splited_list):
+    image_response_list = []
+    client = OpenAI()
+    with st.spinner('Generating image files...'):
+        for i in range(scenesAmount):
+            imageresponse = client.images.generate(
+                model="dall-e-3",
+                prompt=splited_list[i]['image'],
+                size="1024x1024",
+                quality="standard",
+                n=1,
+            )  
+            image_data = requests.get(imageresponse.data[0].url).content
+            image_response_list.append(image_data)
+    return image_response_list
+
 # Function to initialize session state
 def initialize_session_state_gemini():
     return st.session_state.setdefault('gemini_api_key', None)
@@ -88,92 +178,25 @@ def text_page():
 
     os.environ["OPENAI_API_KEY"] = openai_key
 
-  safety_settings = "{}"  
-  safety_settings = json.loads(safety_settings)
   
-  if inputChoice == ":rainbow[Text]":
-    prompt = st.text_input("Generate an educational video about:")
-  elif inputChoice == "Camera":
-    prompt = st.camera_input("Take a picture")
-  elif inputChoice == "Image File :floppy_disk:":
-    prompt = st.file_uploader("Upload a file", type=["jpg", "png", "jpeg"])
-  else:
-    st.error("Please select an input option.")
-    st.stop()
-    
+  #Main code
   
-  # Check if the query is provided
-  if not prompt:
-    st.stop()
-  if not gemini_key:
-    st.error("Please enter your API key.")
-    st.stop()
-    
-  #Script generation
-  with st.spinner('Generating script...'):
-    gemini = genai.GenerativeModel(model_name="gemini-pro",
-                                  #generation_config=generation_config,
-                                  safety_settings=safety_settings)
-      
-    theme_prompt= "is the question of my educational script of" +str(scenesAmount) + "parts. Each part must have a short Narration and a Prompt to generate an image in the style" + str(imageStyle) + "about the event narrated."
-    prompt_parts = [theme_prompt] + [prompt] 
-    
-    response= ''
-    
-    if response:
-      parts = response.parts
-    try:
-      response = gemini.generate_content(prompt_parts)
-      if response.text: 
-          st.toast('Script generated!', icon='🎈')  
-    except Exception as e:
-      st.write(f"An error occurred: {str(e)}")
-         
-  #Prompt spliting
-  splited_list = []
-  with st.spinner('Spliting script...'):
-    for i in range(scenesAmount):
-      splited = split_prompts(response.text, i+1)
-      splited_list.append(splited)
-      st.write('iteration' + str(i+1))
-      st.write(splited_list[i]['narration'])
-
-  #Audio generation
-  audio_list = []
-
-  with st.spinner('Generating audio files...'):
-    for i in range(scenesAmount):
-      audio = generate(
-          api_key=ELEVEN_LABS_API_KEY,
-          text=splited_list[i]['narration'],
-          voice="Rachel",
-          model="eleven_multilingual_v2"
-      )
-      audio_list.append(audio)
-
+  prompt = get_prompt(inputChoice, process_image)
   
-  #Image generation
-  image_response_list = []
+  response = generate_script(prompt, gemini_key, scenesAmount, imageStyle)
+  st.write(response)
+  
+  splited_list = split_script(scenesAmount, response, split_prompts)
+  
+  #audio_list = generate_audio(scenesAmount, splited_list, generate, ELEVEN_LABS_API_KEY)
 
-  client = OpenAI()
-  with st.spinner('Generating image files...'):
-    for i in range(scenesAmount):
-      imageresponse = client.images.generate(
-        model="dall-e-3",
-        prompt=splited_list[i]['image'],
-        size="1024x1024",
-        quality="standard",
-        n=1,
-      )  
-      image_data = requests.get(imageresponse.data[0].url).content
-      image_response_list.append(image_data)
-    
+  image_response_list = generate_images(scenesAmount, splited_list)
+
   
   for i in range(scenesAmount):
     st.image(image_response_list[i], caption='Image number'+str(i+1))
     
   st.subheader("Your video:")
-    
     
   st.balloons()
   st.toast('Your video is ready!', icon='🎈')
