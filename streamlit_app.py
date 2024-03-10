@@ -33,7 +33,6 @@ def process_image(imageInput):
     if imageInput is not None:
         imageInput = Image.open(imageInput)
         imageResult = visionModel.generate_content(["What is the main subject in the image?", imageInput])
-        st.write("Prompt:" +str(imageResult.text))
         return imageResult.text
     else:
         st.stop()
@@ -184,7 +183,6 @@ def text_page():
   prompt = get_prompt(inputChoice, process_image)
   
   response = generate_script(prompt, gemini_key, scenesAmount, imageStyle)
-  st.write(response)
   
   splited_list = split_script(scenesAmount, response, split_prompts)
   
