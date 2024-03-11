@@ -12,6 +12,19 @@ from elevenlabs import generate, play, save
 from IPython.display import display
 from IPython.display import Markdown
 
+def configure_api_key(api_name, session_key, placeholder_text):
+  api_key = st.sidebar.text_input("", value=session_key, label_visibility='collapsed', type='password', placeholder=placeholder_text)
+
+  if api_key:
+    session_key = api_key
+    if api_name == 'gemini':
+      genai.configure(api_key=api_key)
+    elif api_name == 'elevenlabs':
+      os.environ["elevenlabs_API_TOKEN"] = api_key
+    elif api_name == 'openai':
+      os.environ["OPENAI_API_KEY"] = api_key
+  return session_key
+
 def get_prompt(inputChoice, process_image):
     if inputChoice == ":rainbow[Text]":
         prompt = st.text_input("Generate an educational video about:")
@@ -32,9 +45,15 @@ def process_image(imageInput):
     visionModel = genai.GenerativeModel('gemini-pro-vision')
     if imageInput is not None:
         imageInput = Image.open(imageInput)
-        imageResult = visionModel.generate_content(["What is the main subject in the image?", imageInput])
-        st.write("Prompt:" +str(imageResult.text))
-        return imageResult.text
+        try:
+          imageResult = visionModel.generate_content(["What is the main subject in the image?", imageInput])
+          if imageResult:
+            st.success('Image analyzed! 🎉')  
+            st.write(imageResult.text)
+            return imageResult.text
+        except Exception as e:
+          st.error(f"An error occurred: {str(e)}")
+          st.stop()
     else:
         st.stop()
         
@@ -55,19 +74,17 @@ def generate_script(prompt, gemini_key, scenesAmount, imageStyle):
                                       safety_settings=safety_settings)
         
         theme_prompt= "is the question of my educational script of" +str(scenesAmount) + "parts. Each part must have a short Narration and a Prompt to generate an image in the style" + str(imageStyle) + "about the event narrated."
+        
         prompt_parts = [theme_prompt] + [prompt] 
         
-        response= ''
-        
-        if response:
-            parts = response.parts
         try:
             response = gemini.generate_content(prompt_parts)
             if response.text: 
                 st.toast('Script generated!', icon='🎈')  
                 return response.text
         except Exception as e:
-            st.write(f"An error occurred: {str(e)}")
+            st.error(f"An error occurred: {str(e)}")
+            st.stop()
 
 def split_prompts(text: str, part: str):
   model = genai.GenerativeModel('gemini-pro')
@@ -84,38 +101,45 @@ def split_script(scenesAmount, response, split_prompts):
         for i in range(scenesAmount):
             splited = split_prompts(response, i+1)
             splited_list.append(splited)
-            st.write('iteration' + str(i+1))
-            st.write(splited_list[i]['narration'])
     return splited_list
 
 def generate_audio(scenesAmount, splited_list, generate, ELEVEN_LABS_API_KEY):
+  if st.session_state.OPENAI_API_KEY is None:
+    st.error("ElevenLabs API key is not set. Please enter the token in the sidebar.")
+    st.stop()
+  else:
     audio_list = []
     with st.spinner('Generating audio files...'):
         for i in range(scenesAmount):
-            audio = generate(
+            audio_data = generate(
                 api_key=ELEVEN_LABS_API_KEY,
                 text=splited_list[i]['narration'],
                 voice="Rachel",
                 model="eleven_multilingual_v2"
             )
-            audio_list.append(audio)
+            audio_list.append(audio_data)
     return audio_list
 
 def generate_images(scenesAmount, splited_list):
-    image_response_list = []
-    client = OpenAI()
-    with st.spinner('Generating image files...'):
-        for i in range(scenesAmount):
-            imageresponse = client.images.generate(
-                model="dall-e-3",
-                prompt=splited_list[i]['image'],
-                size="1024x1024",
-                quality="standard",
-                n=1,
-            )  
-            image_data = requests.get(imageresponse.data[0].url).content
-            image_response_list.append(image_data)
-    return image_response_list
+    if st.session_state.OPENAI_API_KEY is None:
+          st.error("OpenAI API key is not set. Please enter the token in the sidebar.")
+          st.stop()
+    else:
+      image_response_list = []
+      client = OpenAI()
+      with st.spinner('Generating image files...'):
+          for i in range(scenesAmount):
+              imageresponse = client.images.generate(
+                  model="dall-e-3",
+                  prompt=splited_list[i]['image'],
+                  size="1024x1024",
+                  quality="standard",
+                  n=1,
+              )  
+              image_data = requests.get(imageresponse.data[0].url).content
+              image_response_list.append(image_data)
+      return image_response_list
+
 
 # Function to initialize session state
 def initialize_session_state_gemini():
@@ -133,14 +157,9 @@ def text_page():
     
   # Scenes amount selector
   st.sidebar.subheader("Amount of Scenes")
-  scenesAmount = st.sidebar.slider('How many scenes do you want?', 0, 8, 3, label_visibility='collapsed')
+  scenesAmount = st.sidebar.slider('How many scenes do you want?', 1, 8, 3, label_visibility='collapsed')
   
 
-
-  # Initialize session state
-  initialize_session_state_gemini()  
-  ELEVEN_LABS_API_KEY = st.session_state.setdefault('ELEVEN_LABS_API_KEY', None)
-  OPENAI_API_KEY = st.session_state.setdefault('OPENAI_API_KEY', None)
 
   # Input Choice
   st.sidebar.subheader("Input Option")
@@ -150,47 +169,27 @@ def text_page():
      label_visibility='collapsed')
 
   # Configure API keys
+  initialize_session_state_gemini()  
+  ELEVEN_LABS_API_KEY = st.session_state.setdefault('ELEVEN_LABS_API_KEY', None)
+  OPENAI_API_KEY = st.session_state.setdefault('OPENAI_API_KEY', None)
   st.sidebar.subheader("API Tokens")
-  gemini_key = st.sidebar.text_input("",value=st.session_state.gemini_api_key,label_visibility='collapsed', type='password', placeholder='Enter Gemini Key')
+  st.session_state.gemini_api_key = configure_api_key('gemini', st.session_state.gemini_api_key, 'Enter Gemini Key')
+  st.session_state.ELEVEN_LABS_API_KEY = configure_api_key('elevenlabs', st.session_state.ELEVEN_LABS_API_KEY, 'Enter ElevenLabs Key')
+  gemini_key = st.session_state.gemini_api_key
+  st.session_state.OPENAI_API_KEY = configure_api_key('openai', st.session_state.OPENAI_API_KEY, 'Enter Openai Key')
 
-    # Check if the API key is provided
-  if gemini_key:
-    st.session_state.gemini_api_key = gemini_key
+  #Main program
 
-  genai.configure(api_key=gemini_key)
-
-  # Configure elevenlabs keys
-  elevenlabs_key = st.sidebar.text_input("", value=st.session_state.ELEVEN_LABS_API_KEY,label_visibility='collapsed', type='password', placeholder='Enter Eleven Labs Key')
-
-    # Check if the API key is provided
-  if elevenlabs_key:
-    # Store the API key in session state
-    st.session_state.ELEVEN_LABS_API_KEY = elevenlabs_key
-    os.environ["elevenlabs_API_TOKEN"] = elevenlabs_key
-
-  # Configure Openai keys
-  openai_key = st.sidebar.text_input("", value=st.session_state.OPENAI_API_KEY,label_visibility='collapsed', type='password', placeholder='Enter Openai Key')
-
-  # Check if the API key is provided
-  if openai_key:
-    # Store the API key in session state
-    st.session_state.OPENAI_API_KEY = openai_key
-
-    os.environ["OPENAI_API_KEY"] = openai_key
-
-  
-  #Main code
-  
   prompt = get_prompt(inputChoice, process_image)
-  
+
   response = generate_script(prompt, gemini_key, scenesAmount, imageStyle)
-  st.write(response)
-  
+
   splited_list = split_script(scenesAmount, response, split_prompts)
-  
-  #audio_list = generate_audio(scenesAmount, splited_list, generate, ELEVEN_LABS_API_KEY)
+
+  audio_list = generate_audio(scenesAmount, splited_list, generate, ELEVEN_LABS_API_KEY)
 
   image_response_list = generate_images(scenesAmount, splited_list)
+
 
   
   for i in range(scenesAmount):
@@ -200,7 +199,10 @@ def text_page():
     
   st.balloons()
   st.toast('Your video is ready!', icon='🎈')
-    
+  
+  with st.expander("Output history"):
+    st.write("Prompt: OLD")
+    st.video("https://www.youtube.com/watch?v=6ZfuNTqbHE8")
 
 # Run the Streamlit app
 if __name__ == "__main__":
