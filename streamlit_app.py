@@ -267,19 +267,26 @@ def text_page():
 
   audio_list = generate_audio(scenesAmount, splited_list, generate, ELEVEN_LABS_API_KEY)
   image_list = generate_images(scenesAmount, splited_list)
- 
-  
   videos = generate_videos(image_list, audio_list)
   final_video = join_videos(videos)
 
 # Para exibir os vídeos gerados no Streamlit
   st.subheader("Your video:")
   st.video(final_video)
-  
   st.balloons() 
   st.toast('Your video is ready!', icon='🎈')
   
-
+ # Verifique se a lista de vídeos já existe no st.session_state, se não, crie uma
+  if 'video_list' not in st.session_state:
+    st.session_state['video_list'] = []
+  # Adicione o vídeo gerado à lista
+  st.session_state['video_list'].append(final_video.getvalue())
+  
+  if len(st.session_state['video_list']) > 1:
+    with st.expander("Output history"):
+        for i in range(len(st.session_state['video_list']) - 1):
+          st.video(st.session_state['video_list'][i])
+ 
 # Run the Streamlit app
 if __name__ == "__main__":
     text_page()
