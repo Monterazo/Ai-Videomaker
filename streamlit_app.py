@@ -5,12 +5,25 @@ import json
 import os
 import requests
 import io
+import uuid
 
+from tempfile import NamedTemporaryFile
+from pathlib import Path
 from PIL import Image
 from openai import OpenAI 
 from elevenlabs import generate, play, save
 from IPython.display import display
 from IPython.display import Markdown
+from moviepy.editor import ImageClip, AudioFileClip, concatenate_videoclips, VideoFileClip
+
+
+#Teste pro ffmpeg
+ffmpeg_path = r'C:\Users\lucas\AppData\Local\Microsoft\WinGet\Packages\Gyan.FFmpeg.Essentials_Microsoft.Winget.Source_8wekyb3d8bbwe\ffmpeg-6.1.1-essentials_build\bin'
+
+# Add the FFmpeg path to the PATH environment variable
+os.environ['PATH'] = ffmpeg_path + os.pathsep + os.environ['PATH']
+
+
 
 def configure_api_key(api_name, session_key, placeholder_text):
   api_key = st.sidebar.text_input("", value=session_key, label_visibility='collapsed', type='password', placeholder=placeholder_text)
@@ -52,7 +65,7 @@ def process_image(imageInput):
             st.write(imageResult.text)
             return imageResult.text
         except Exception as e:
-          st.error(f"An error occurred: {str(e)}")
+          st.error("Failed to save file: " + str(e))
           st.stop()
     else:
         st.stop()
@@ -140,7 +153,74 @@ def generate_images(scenesAmount, splited_list):
               image_response_list.append(image_data)
       return image_response_list
 
+def save_uploaded_file(file, file_type):
+    # Cria o diretório se ele não existir
+    os.makedirs('temp_dir', exist_ok=True)
+  
+    # Cria um nome de arquivo único
+    video = f"temp_dir/{uuid.uuid4()}.{file_type}"
+    
+    try:
+        with open(video, "wb") as f:
+            f.write(file)
+    except Exception as e:
+        st.error("Erro ao salvar o arquivo: " + str(e))
+        return None
 
+    return video
+
+def create_video(image_input, audio_input): 
+    # Carregar o arquivo de áudio
+    audio_clip = AudioFileClip(audio_input)
+
+    # Carregar a imagem e definir a duração para a duração do áudio
+    img_clip = ImageClip(image_input).set_duration(audio_clip.duration)
+
+    # Definir o áudio da imagem para o áudio carregado
+    final_clip = img_clip.set_audio(audio_clip)
+
+    # Gerar um UUID e criar um nome de arquivo com ele
+    video_filename = f"temp_dir/{uuid.uuid4()}.mp4"
+
+    # Escrever o resultado para o arquivo
+    final_clip.write_videofile(video_filename, codec='libx264', fps=1)
+
+    # Retornar o nome do arquivo
+    return video_filename
+  
+def generate_videos(image_list, audio_list):
+    video_files = []
+    for i, (image, audio) in enumerate(zip(image_list, audio_list)):
+        image_filename = save_uploaded_file(image, "jpg")
+        audio_filename = save_uploaded_file(audio, "wav")
+        video_filename = create_video(image_filename, audio_filename)
+        if os.path.isfile(image_filename):
+            os.remove(image_filename)
+        if os.path.isfile(audio_filename):
+            os.remove(audio_filename)
+        video_files.append(video_filename)
+    return video_files
+
+def join_videos(video_files):
+    clips = [VideoFileClip(video) for video in video_files]
+    final_clip = concatenate_videoclips(clips)
+    temp_video_filename = f"temp_dir/{uuid.uuid4()}.mp4"
+    final_clip.write_videofile(temp_video_filename, codec='libx264')
+    
+    # Ler o arquivo temporário em um objeto BytesIO
+    with open(temp_video_filename, 'rb') as f:
+        final_video = io.BytesIO(f.read())
+
+    # Remover o arquivo temporário
+    os.remove(temp_video_filename)
+
+    # Apagar os vídeos originais
+    for video in video_files:
+        if os.path.isfile(video):
+            os.remove(video)
+
+    return final_video
+  
 # Function to initialize session state
 def initialize_session_state_gemini():
     return st.session_state.setdefault('gemini_api_key', None)
@@ -159,7 +239,6 @@ def text_page():
   st.sidebar.subheader("Amount of Scenes")
   scenesAmount = st.sidebar.slider('How many scenes do you want?', 1, 8, 3, label_visibility='collapsed')
   
-
 
   # Input Choice
   st.sidebar.subheader("Input Option")
@@ -187,22 +266,19 @@ def text_page():
   splited_list = split_script(scenesAmount, response, split_prompts)
 
   audio_list = generate_audio(scenesAmount, splited_list, generate, ELEVEN_LABS_API_KEY)
-
-  image_response_list = generate_images(scenesAmount, splited_list)
-
-
+  image_list = generate_images(scenesAmount, splited_list)
+ 
   
-  for i in range(scenesAmount):
-    st.image(image_response_list[i], caption='Image number'+str(i+1))
-    
+  videos = generate_videos(image_list, audio_list)
+  final_video = join_videos(videos)
+
+# Para exibir os vídeos gerados no Streamlit
   st.subheader("Your video:")
-    
-  st.balloons()
+  st.video(final_video)
+  
+  st.balloons() 
   st.toast('Your video is ready!', icon='🎈')
   
-  with st.expander("Output history"):
-    st.write("Prompt: OLD")
-    st.video("https://www.youtube.com/watch?v=6ZfuNTqbHE8")
 
 # Run the Streamlit app
 if __name__ == "__main__":
