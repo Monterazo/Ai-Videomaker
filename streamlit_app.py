@@ -154,6 +154,7 @@ def generate_images(scenesAmount, splited_list):
       return image_response_list
 
 def save_uploaded_file(file, file_type):
+  with st.spinner('Saving files...'):
     # Cria o diretório se ele não existir
     os.makedirs('temp_dir', exist_ok=True)
   
@@ -189,6 +190,7 @@ def create_video(image_input, audio_input):
     return video_filename
   
 def generate_videos(image_list, audio_list):
+  with st.spinner('Casting audio and image...'):
     video_files = []
     for i, (image, audio) in enumerate(zip(image_list, audio_list)):
         image_filename = save_uploaded_file(image, "jpg")
@@ -202,6 +204,7 @@ def generate_videos(image_list, audio_list):
     return video_files
 
 def join_videos(video_files):
+  with st.spinner('Compiling video...'):
     clips = [VideoFileClip(video) for video in video_files]
     final_clip = concatenate_videoclips(clips)
     temp_video_filename = f"temp_dir/{uuid.uuid4()}.mp4"
